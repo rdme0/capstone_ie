@@ -1,5 +1,5 @@
 // src/components/main/PaymentConfirmation.tsx
-import cardImage from "@/assets/card.png";
+import cardImage from "@/assets/Card.png";
 import Header from "@/components/Header";
 import Character from "@/components/Character";
 import Captions from "@/components/Captions";
