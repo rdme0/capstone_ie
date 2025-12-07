@@ -9,56 +9,55 @@ import Idle from "@/components/Idle";
 export default function KioskApp() {
   const storeId = import.meta.env.VITE_KIOSK_STORE_ID;
 
-  // Idle에서 벗어나기 위한 상태
   const [isStarted, setIsStarted] = useState(false);
-
-  // 화면 전환 기준 상태값
   const step = useKioskStore((s) => s.step);
   const setStep = useKioskStore((s) => s.setStep);
+  const setText = useKioskStore((s) => s.setText);
 
-  // WebSocket & Mic
   const { wsRef, serverReady } = useKioskSocket(storeId, isStarted);
   const { startStreaming, stopStreaming } = useMicStream(wsRef);
 
   // 화면 터치 → 시작
   const handleTouch = () => {
-    if (!isStarted) {
-      console.log("👆 화면 터치 → Start");
-      setIsStarted(true);
-    }
+    if (!isStarted) setIsStarted(true);
   };
 
-  // SERVER_READY → 마이크 시작 + Idle 탈출
+  // 서버 준비 완료 → 음성 입력 시작
   useEffect(() => {
     if (serverReady) {
-      console.log("🚀 SERVER_READY → 마이크 시작 및 화면 표시");
       startStreaming();
-      setIsStarted(true); // 🔥 Idle에 갇히는 문제 해결
 
-      // step의 초기값이 유효한 상태인지 확인 후 보정
-      const validStates = [
-        "MENU_SELECTION",
-        "CART_CONFIRMATION",
-        "PAYMENT_CONFIRMATION",
-        "COMPLETED",
-        "CANCELLED",
-      ];
-      if (!validStates.includes(step)) {
-        console.log("⚠️ step이 유효하지 않아 초기화:", step);
-        setStep("MENU_SELECTION");
-      }
+      if (step === "CANCELLED" || step === "COMPLETED") return;
+      setStep("MENU_SELECTION");
     }
   }, [serverReady]);
 
-  // 결제 완료 → 스트리밍 종료
+  // 🟢 COMPLETED → 3초 뒤 Idle 화면으로 자동 이동
   useEffect(() => {
     if (step === "COMPLETED") {
-      console.log("💰 결제 완료 → 음성 스트리밍 중단");
-      stopStreaming();
+      setText("✅ 결제가 완료되었습니다.");
+
+      const timer = setTimeout(() => {
+        console.log("🔄 COMPLETED → Idle 화면으로 복귀");
+        setIsStarted(false);
+        setStep("MENU_SELECTION");
+        setText("");
+      }, 3000);
+
+      return () => clearTimeout(timer);
     }
   }, [step]);
 
-  // 화면 렌더링 제어
+  // 🔥 isStarted = false → WebSocket + Mic 모두 정리
+  useEffect(() => {
+    if (!isStarted) {
+      console.log("🛑 Idle 상태 → WebSocket 및 마이크 종료");
+
+      wsRef.current?.close(1000, "Go back to idle");
+      stopStreaming();
+    }
+  }, [isStarted]);
+
   const renderScreen = () => {
     if (!isStarted || !serverReady) {
       return (
@@ -69,8 +68,7 @@ export default function KioskApp() {
         />
       );
     }
-
-    return <MainContent />; // 🔥 step에 따라 MainContent 내부에서 화면 전환
+    return <MainContent />;
   };
 
   return (

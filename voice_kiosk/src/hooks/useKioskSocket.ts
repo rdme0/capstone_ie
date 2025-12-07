@@ -2,8 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuthStore } from "@/store/authStore";
 import { useKioskStore } from "@/store/kioskStore";
-import usePcmPlayer from "@/hooks/usePcmPlayer";
 import type { State } from "@/types/step";
+import usePcmPlayer from "@/hooks/usePcmPlayer";
 
 export const useKioskSocket = (storeId: string, connect: boolean) => {
   const wsRef = useRef<WebSocket | null>(null);
@@ -15,9 +15,10 @@ export const useKioskSocket = (storeId: string, connect: boolean) => {
   const setText = useKioskStore((s) => s.setText);
   const appendText = useKioskStore((s) => s.appendText);
   const setStep = useKioskStore((s) => s.setStep);
-  const step = useKioskStore((s) => s.step);
 
+  const step = useKioskStore((s) => s.step);
   const firstChunkRef = useRef(true);
+
   const pcmPlayer = usePcmPlayer();
 
   useEffect(() => {
@@ -28,10 +29,10 @@ export const useKioskSocket = (storeId: string, connect: boolean) => {
     )}`;
 
     console.log("🔌 WebSocket 연결 시도:", wsUrl);
-
     const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
+
     ws.binaryType = "arraybuffer";
+    wsRef.current = ws;
 
     ws.onopen = () => {
       console.log("✅ WebSocket connected");
@@ -40,66 +41,61 @@ export const useKioskSocket = (storeId: string, connect: boolean) => {
 
     ws.onerror = (e) => console.error("⚠️ WebSocket error:", e);
 
-    ws.onclose = (e) => {
+    ws.onclose = (e) =>
       console.log("❌ WebSocket closed:", e.code, e.reason);
-    };
 
     ws.onmessage = (event) => {
       const data = event.data;
 
+      // 🔊 PCM 오디오 처리 — 즉시 재생
       if (data instanceof ArrayBuffer) {
         pcmPlayer.enqueue(data);
         return;
       }
 
+      // 🔤 JSON 메시지 처리
       try {
         const json = JSON.parse(data);
-        console.log("📩 메시지 수신:", json);
 
         switch (json.messageType) {
-          // AI 음성 입력 준비 완료
           case "SERVER_READY":
             setServerReady(true);
             break;
 
-          // 스트리밍 텍스트 청크
           case "OUTPUT_TEXT_CHUNK":
             if (firstChunkRef.current) {
-              setText(""); // 첫 chunk에서 기존 문구 삭제
+              // 첫 chunk → append 말고 바로 setText!
+              setText(json.content.text);
               firstChunkRef.current = false;
+            } else {
+              appendText(json.content.text);
             }
-            appendText(json.content.text);
             break;
 
-          // 스트리밍 완료 → 최종 텍스트 표시 (딜레이 제거)
           case "OUTPUT_TEXT_RESULT":
             setText(json.content.text);
             break;
 
-          // 장바구니 갱신
           case "UPDATE_SHOPPING_CART":
             setCart(json.content);
             break;
 
-          // 상태 변경 (백엔드 기준 처리)
           case "CHANGE_STATE": {
             const next = json.content.to as State;
-            const current = step;
+            console.log(`🔄 상태 변경: ${step} → ${next}`);
 
-            console.log(`🔄 상태 변경 요청: ${current} → ${next}`);
+            setStep(next);
 
-            if (next !== current) {
-              setStep(next);
-              firstChunkRef.current = true;
-            }
+            firstChunkRef.current = true;
+            setText("");
             break;
           }
 
           default:
-            console.warn("⚠️ 알 수 없는 messageType:", json.messageType);
+            console.warn("⚠️ Unknown messageType:", json.messageType);
         }
       } catch (err) {
-        console.error("❌ JSON 파싱 실패:", err);
+        console.error("❌ JSON parse error:", err);
       }
     };
 
@@ -109,16 +105,6 @@ export const useKioskSocket = (storeId: string, connect: boolean) => {
       pcmPlayer.stop();
     };
   }, [connect]);
-
-  useEffect(() => {
-    if (step === "COMPLETED") {
-      console.log("💰 COMPLETED → WebSocket 종료");
-
-      wsRef.current?.close(1000, "Payment complete");
-      pcmPlayer.stop();
-      setText("✅ 결제가 완료되었습니다.");
-    }
-  }, [step]);
 
   return { wsRef, serverReady, pcmPlayer };
 };
