@@ -20,11 +20,8 @@ export const useKioskSocket = (storeId: string, connect: boolean) => {
   const firstChunkRef = useRef(true);
   const pcmPlayer = usePcmPlayer();
 
-  // COMPLETED 상태인지 체크 (PCM 무시용)
+  // COMPLETED 상태 여부 (PCM 차단)
   const isCompletedRef = useRef(false);
-
-  // COMPLETED에서 소켓 종료 타이머
-  const completeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!connect || !storeId || !accessToken) return;
@@ -34,35 +31,30 @@ export const useKioskSocket = (storeId: string, connect: boolean) => {
     )}`;
 
     console.log("🔌 WebSocket 연결 시도:", wsUrl);
-    const ws = new WebSocket(wsUrl);
 
-    ws.binaryType = "arraybuffer";
+    const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
+    ws.binaryType = "arraybuffer";
 
     ws.onopen = () => {
       console.log("✅ WebSocket connected");
       firstChunkRef.current = true;
+      isCompletedRef.current = false;
     };
 
     ws.onerror = (e) => console.error("⚠️ WebSocket error:", e);
-
-    ws.onclose = (e) => {
-      console.log("❌ WebSocket closed:", e.code, e.reason);
-    };
+    ws.onclose = (e) => console.log("❌ WebSocket closed:", e.code, e.reason);
 
     ws.onmessage = (event) => {
       const data = event.data;
 
-      /** 🔊 PCM 스트리밍 처리 */
       if (data instanceof ArrayBuffer) {
-        // COMPLETED 에서는 PCM 무시
         if (!isCompletedRef.current) {
           pcmPlayer.enqueue(data);
         }
         return;
       }
 
-      /** 🔤 JSON 메시지 처리 */
       try {
         const json = JSON.parse(data);
         console.log("📩 메시지 수신:", json);
@@ -94,30 +86,34 @@ export const useKioskSocket = (storeId: string, connect: boolean) => {
 
           case "CHANGE_STATE": {
             const next = json.content.to as State;
-            const current = step;
-
-            console.log(`🔄 상태 변경: ${current} → ${next}`);
+            const prev = step;
+            console.log(`🔄 상태 변경: ${prev} → ${next}`);
 
             setStep(next);
             firstChunkRef.current = true;
 
-            // COMPLETED 진입 시 PCM 즉시 차단 + 완료 문구 표시
+            if (next === "PAYMENT_CONFIRMATION") {
+              console.log("💳 PAYMENT_CONFIRMATION 도달 → PROCESS_PAYMENT 자동 전송");
+
+              const payMsg = {
+                messageType: "PROCESS_PAYMENT",
+                content: { paymentMethod: "AUTO" },
+              };
+
+              wsRef.current?.send(JSON.stringify(payMsg));
+            }
+
             if (next === "COMPLETED") {
-              console.log("🎉 COMPLETED 진입 → PCM 차단 + UI 문구 표시");
+              console.log("🎉 COMPLETED 진입 → PCM 차단 + 종료 준비");
 
               isCompletedRef.current = true;
-              pcmPlayer.stop();
 
-              // UI 문구 바로 표시
               setText("🧾 주문해주셔서 감사합니다.");
 
-              // 백엔드 마지막 메시지 여유시간(딜레이 없음)
-              if (completeTimeoutRef.current)
-                clearTimeout(completeTimeoutRef.current);
-
-              completeTimeoutRef.current = setTimeout(() => {
+              setTimeout(() => {
                 wsRef.current?.close(1000, "Payment complete");
-              }, 300);
+                pcmPlayer.stop();
+              }, 200);
             }
 
             break;
