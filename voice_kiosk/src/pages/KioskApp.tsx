@@ -9,7 +9,9 @@ import MainContent from "@/components/main/MainContent";
 import Idle from "@/components/Idle";
 
 export default function KioskApp() {
-  const storeId = import.meta.env.VITE_KIOSK_STORE_ID;
+  const rawStoreId = new URLSearchParams(location.search).get("storeId");
+  const storeId = rawStoreId ?? import.meta.env.VITE_KIOSK_STORE_ID;
+
   const [isStarted, setIsStarted] = useState(false);
 
   // kiosk store
@@ -47,7 +49,6 @@ export default function KioskApp() {
         startStreaming();
       }
 
-      // 유효 상태 목록만 인정
       const validStates: State[] = [
         "MENU_SELECTION",
         "PAYMENT_CONFIRMATION",
