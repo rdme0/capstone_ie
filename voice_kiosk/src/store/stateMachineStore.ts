@@ -12,32 +12,25 @@ export const useStateMachine = create<StateMachine>((set) => ({
 
   transition: (event) =>
     set((state) => {
-      switch (state.currentState) {
-        case "MENU_SELECTION":
-          if (event === "CONFIRM_CART") return { currentState: "CART_CONFIRMATION" };
-          if (event === "CANCEL") return { currentState: "CANCELLED" };
-          break;
+      const s = state.currentState;
 
-        case "CART_CONFIRMATION":
+      switch (s) {
+        case "MENU_SELECTION":
           if (event === "CONFIRM_PAYMENT") return { currentState: "PAYMENT_CONFIRMATION" };
-          if (event === "PREVIOUS") return { currentState: "MENU_SELECTION" };
           if (event === "CANCEL") return { currentState: "CANCELLED" };
           break;
 
         case "PAYMENT_CONFIRMATION":
+          if (event === "PREVIOUS") return { currentState: "MENU_SELECTION" };
           if (event === "PROCESS_PAYMENT") return { currentState: "COMPLETED" };
-          if (event === "PREVIOUS") return { currentState: "CART_CONFIRMATION" }; // 🔥 수정됨
           if (event === "CANCEL") return { currentState: "CANCELLED" };
           break;
 
         case "COMPLETED":
-          if (event === "CANCEL") return { currentState: "MENU_SELECTION" }; // 🔥 복귀 허용
-          break;
-
         case "CANCELLED":
-          if (event === "PREVIOUS") return { currentState: "MENU_SELECTION" }; // 🔥 복귀 허용
-          break;
+          return state; // 그대로 유지
       }
+
       return state;
     }),
 }));
