@@ -1,6 +1,5 @@
 // src/hooks/useKioskSocket.ts
 import { useEffect, useRef, useState } from "react";
-import { useAuthStore } from "@/store/authStore";
 import { useKioskStore } from "@/store/kioskStore";
 import type { State } from "@/types/step";
 import usePcmPlayer from "@/hooks/usePcmPlayer";
@@ -12,7 +11,6 @@ type WSMessage = {
 
 export const useKioskSocket = (storeId: string, connect: boolean) => {
   const wsRef = useRef<WebSocket | null>(null);
-  const accessToken = useAuthStore((s) => s.accessToken);
 
   const [serverReady, setServerReady] = useState(false);
 
@@ -36,9 +34,9 @@ export const useKioskSocket = (storeId: string, connect: boolean) => {
   };
 
   useEffect(() => {
-    if (!connect || !storeId || !accessToken) return;
+    if (!connect || !storeId) return;
 
-    const wsUrl = `${import.meta.env.VITE_WS_BASE_URL}/stores/${storeId}/websocket/kioskSession?accessToken=${encodeURIComponent(accessToken)}`;
+    const wsUrl = `${import.meta.env.VITE_WS_BASE_URL}/stores/${storeId}/websocket/kioskSession`;
 
     console.log("🔌 WebSocket 연결 시도:", wsUrl);
     const ws = new WebSocket(wsUrl);

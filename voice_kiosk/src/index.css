@@ -4,6 +4,14 @@
 @tailwind components;
 @tailwind utilities;
 
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+}
+
 body {
+  margin: 0;
   font-family: "Pretendard", sans-serif;
 }
