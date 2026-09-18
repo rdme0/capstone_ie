@@ -1,4 +1,3 @@
-// src/components/Header.tsx
 export default function Header() {
   return (
     <div className="w-[1080px] h-36 flex items-center justify-center overflow-hidden">

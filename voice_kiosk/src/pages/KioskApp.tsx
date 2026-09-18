@@ -1,5 +1,5 @@
 // src/pages/KioskApp.tsx
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useLayoutEffect } from "react";
 import { useKioskSocket } from "@/hooks/useKioskSocket";
 import { useMicStream } from "@/hooks/useMicStream";
 import { useKioskStore } from "@/store/kioskStore";
@@ -15,12 +15,25 @@ const VALID_STATES: State[] = [
   "COMPLETED",
   "CANCELLED",
 ];
+const DEMO_STORE_ID = "1";
+const KIOSK_WIDTH = 1080;
+const KIOSK_HEIGHT = 1920;
 
 export default function KioskApp() {
-  const rawStoreId = new URLSearchParams(location.search).get("storeId");
-  const storeId = rawStoreId ?? import.meta.env.VITE_KIOSK_STORE_ID;
+  const storeId = DEMO_STORE_ID;
 
   const [isStarted, setIsStarted] = useState(false);
+  const [scale, setScale] = useState(1);
+
+  useLayoutEffect(() => {
+    const updateScale = () => {
+      setScale(Math.min(window.innerWidth / KIOSK_WIDTH, window.innerHeight / KIOSK_HEIGHT, 1));
+    };
+
+    updateScale();
+    window.addEventListener("resize", updateScale);
+    return () => window.removeEventListener("resize", updateScale);
+  }, []);
 
   // kiosk store
   const step = useKioskStore((s) => s.step) as State;
@@ -94,10 +107,17 @@ export default function KioskApp() {
 
   return (
     <div
-      className="w-[1080px] h-[1920px] overflow-hidden"
+      className="flex min-h-[100dvh] w-full items-start justify-center overflow-hidden bg-white"
       onClick={handleTouch}
     >
-      {renderScreen()}
+      <div style={{ width: KIOSK_WIDTH * scale, height: KIOSK_HEIGHT * scale }}>
+        <div
+          className="w-[1080px] h-[1920px] overflow-hidden"
+          style={{ transform: `scale(${scale})`, transformOrigin: "top left" }}
+        >
+          {renderScreen()}
+        </div>
+      </div>
     </div>
   );
 }
